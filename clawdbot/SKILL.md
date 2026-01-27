@@ -1,6 +1,6 @@
 ---
 name: gevety
-version: 1.3.0
+version: 1.4.0
 description: Access your Gevety health data - biomarkers, healthspan scores, biological age, supplements, activities, daily actions, 90-day health protocol, and upcoming tests
 homepage: https://gevety.com
 user-invocable: true
@@ -54,6 +54,22 @@ Authorization: Bearer $GEVETY_API_TOKEN
 
 Base URL: `https://api.gevety.com`
 
+## Standardized Biomarker Names
+
+The API uses consistent biomarker names across all endpoints. When querying or displaying biomarkers, use these standardized names:
+
+| Common Names | API Returns |
+|--------------|-------------|
+| CRP, C-Reactive Protein, hsCRP, CRP High-Sensitive | **hs-CRP** |
+| Glucose, Blood Glucose | **Fasting Glucose** |
+| Insulin, Insulin Fasting | **Fasting Insulin** |
+| IG | **Immature Granulocytes** |
+| Vitamin D, 25-OH Vitamin D | **Vitamin D** |
+| LDL, LDL Cholesterol | **LDL Cholesterol** |
+| HDL, HDL Cholesterol | **HDL Cholesterol** |
+
+**Tip**: You can search using any common name (e.g., "CRP" or "glucose") - the API will match and return the standardized name.
+
 ## Available Endpoints
 
 ### 1. List Available Data (Start Here)
@@ -84,6 +100,9 @@ Returns:
 - `trend`: IMPROVING, STABLE, or DECLINING
 - `axis_scores`: Scores for each health dimension (metabolic, cardiovascular, etc.)
 - `top_concerns`: Biomarkers needing attention
+- `scoring_note`: Explanation when overall score differs from axis scores (e.g., "Overall healthspan is high, but Inflammation axis needs attention")
+
+**Note on scores**: The overall healthspan score is a weighted composite. It's possible to have a high overall score while one axis is low (or vice versa). The `scoring_note` field explains these situations.
 
 ### 3. Query Biomarker
 
@@ -94,11 +113,11 @@ GET /api/v1/mcp/tools/query_biomarker?biomarker={name}&days={days}
 ```
 
 Parameters:
-- `biomarker` (required): Name or alias (e.g., "vitamin d", "ldl", "hba1c")
+- `biomarker` (required): Name or alias (e.g., "vitamin d", "ldl", "hba1c", "crp")
 - `days` (optional): History period, 1-730, default 365
 
 Returns:
-- `canonical_name`: Standardized biomarker name
+- `canonical_name`: Standardized biomarker name (see table above)
 - `history`: Array of test results with dates, values, units, flags
 - `latest`: Most recent result
 - `trend`: Direction (IMPROVING, STABLE, DECLINING) and percent change
@@ -142,7 +161,7 @@ Returns:
 - `healthspan_score`: Current healthspan score
 
 Each opportunity includes:
-- `biomarker`: Name of the biomarker
+- `biomarker`: Standardized biomarker name
 - `current_value` / `optimal_value`: Where you are vs target
 - `opportunity_score`: Healthspan points gained if optimized
 - `years_estimate`: Estimated healthy years gained
@@ -187,10 +206,11 @@ Returns:
 
 Each supplement includes:
 - `name`: Supplement name
-- `amount` / `unit`: Dosage (e.g., "1000", "mg")
-- `frequency`: How often (daily, 2x daily, etc.)
+- `dose_text`: Formatted dosage (e.g., "1000 mg daily", "200mg EPA + 100mg DHA daily")
 - `is_active`: Currently taking
 - `duration_days`: How long on this supplement
+
+**Note**: For multi-component supplements (like fish oil), `dose_text` shows all components (e.g., "200mg EPA + 100mg DHA daily").
 
 ### 8. Get Activities
 
@@ -247,7 +267,7 @@ Each action includes:
 - `action_type`: Type (supplement, habit, diet, medication, test, procedure)
 - `completed`: Whether completed today
 - `scheduled_window`: Time window (morning, afternoon, evening, any)
-- `dose_text`: Dosage info if applicable
+- `dose_text`: Dosage info if applicable (e.g., "1000 mg daily")
 
 ### 10. Get Protocol
 
@@ -269,10 +289,11 @@ Returns:
 Each priority includes:
 - `priority_id`: Stable ID (same as rank)
 - `rank`: Priority rank (1 = highest)
-- `biomarker`: Biomarker name
+- `biomarker`: Standardized biomarker name
 - `status`: Current status (critical, concerning, suboptimal, optimal)
 - `target`: Target value with unit
-- `last_value` / `unit`: Current measured value
+- `current_value` / `unit`: Current measured value
+- `measured_at`: When this biomarker was last measured
 - `why_prioritized`: Explanation for why this is prioritized
 
 **Note**: If no protocol exists, returns a helpful error with suggestion to generate one at gevety.com/protocol.
@@ -315,10 +336,12 @@ Each test includes:
 Each health dimension is scored independently:
 - **Metabolic**: Blood sugar, insulin, lipids
 - **Cardiovascular**: Heart health markers
-- **Inflammatory**: CRP, homocysteine
+- **Inflammatory**: hs-CRP, homocysteine
 - **Hormonal**: Thyroid, testosterone, cortisol
 - **Nutritional**: Vitamins, minerals
 - **Liver/Kidney**: Organ function markers
+
+**Important**: It's possible to have a high overall score with one low axis score (or vice versa). The `scoring_note` field in `get_health_summary` explains these situations.
 
 ### Biomarker Status Labels
 | Label | Meaning |
@@ -335,11 +358,17 @@ Each health dimension is scored independently:
 1. Call `list_available_data` to see what's tracked
 2. Call `get_health_summary` for the overall picture
 3. Highlight top concerns and recent trends
+4. If `scoring_note` is present, explain the score discordance
 
 ### "Tell me about my vitamin D"
 1. Call `query_biomarker?biomarker=vitamin d`
 2. Present history, current status, and trend
 3. Note optimal range vs current value
+
+### "What's my CRP?" / "How's my inflammation?"
+1. Call `query_biomarker?biomarker=crp` (returns as "hs-CRP")
+2. Present the value and trend
+3. Explain what hs-CRP measures (inflammation marker)
 
 ### "How's my sleep/HRV?"
 1. Call `get_wearable_stats?metric=sleep` or `?metric=hrv`
@@ -359,7 +388,7 @@ Each health dimension is scored independently:
 
 ### "What supplements am I taking?"
 1. Call `list_supplements?active_only=true`
-2. List active supplements with dosages
+2. List active supplements with dosages (use `dose_text` field)
 3. Note duration on each supplement
 
 ### "What workouts have I done?"
@@ -438,12 +467,12 @@ No authentication required. If the request fails or times out, skip the check an
 Response (when successful):
 ```json
 {
-  "clawdbot_skill": { "latest": "1.0.0", "update_command": "clawdhub update gevety" },
+  "clawdbot_skill": { "latest": "1.4.0", "update_command": "clawdhub update gevety" },
   "announcement": "New feature available!"
 }
 ```
 
-**If `clawdbot_skill.latest` > 1.0.0** (this skill's version), tell the user:
+**If `clawdbot_skill.latest` > 1.4.0** (this skill's version), tell the user:
 > "A Gevety skill update is available. Run: `clawdhub update gevety`"
 
 **If `announcement` is present**, mention it once per session.

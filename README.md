@@ -56,7 +56,7 @@ All integrations access the same 11 API endpoints:
 ## Links
 
 - **Website**: [gevety.com](https://gevety.com)
-- **API Docs**: [api.gevety.com/api/v1/docs](https://api.gevety.com/api/v1/docs)
+- **API Docs**: [api.gevety.com/docs](https://api.gevety.com/docs)
 - **MCP Package**: [pypi.org/project/gevety-mcp](https://pypi.org/project/gevety-mcp/)
 
 ## License

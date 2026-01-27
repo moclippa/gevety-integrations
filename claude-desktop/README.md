@@ -100,4 +100,4 @@ The MCP server provides 11 tools:
 
 - [PyPI Package](https://pypi.org/project/gevety-mcp/)
 - [Gevety Website](https://gevety.com)
-- [API Documentation](https://api.gevety.com/api/v1/docs)
+- [API Documentation](https://api.gevety.com/docs)

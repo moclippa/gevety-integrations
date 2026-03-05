@@ -1,7 +1,7 @@
 ---
 name: gevety
-version: 1.6.0
-description: Access your Gevety health data - biomarkers, healthspan scores, biological age, supplements, activities, daily actions, 90-day health protocol, upcoming tests, lab reports, and health content
+version: 1.7.0
+description: Access your Gevety health data - biomarkers, healthspan scores, biological age, supplements, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, and health content
 homepage: https://gevety.com
 user-invocable: true
 command: gevety
@@ -241,7 +241,21 @@ Each activity includes:
 - `distance_km`: Distance (if applicable)
 - `calories`: Calories burned
 - `avg_hr` / `max_hr`: Heart rate data
-- `source`: Where the data came from (garmin, strava, etc.)
+- `source`: Where the data came from (garmin, strava, hevy, concept2, etc.)
+- `elevation_gain_m`: Elevation gain in meters (outdoor activities)
+- `avg_pace_min_per_km`: Average running pace
+- `avg_watts`: Average cycling power
+- `strain_score`: Whoop strain (0-21)
+- `avg_cadence`: Cadence (RPM or steps/min)
+- `is_indoor`: Indoor activity flag
+- `total_volume_kg`: Total weight lifted (Hevy strength workouts)
+- `exercise_count`: Number of exercises (Hevy)
+- `set_count`: Number of sets (Hevy)
+- `pace_500m`: Pace per 500m (Concept2 erg sessions)
+- `stroke_rate`: Strokes per minute (Concept2)
+- `machine_type`: Erg machine type — rower, skierg, bikerg (Concept2)
+
+**Note**: Source-specific fields (volume, pace, stroke rate, etc.) are only populated for the relevant source. For example, `total_volume_kg` only appears on Hevy activities and `pace_500m` only on Concept2 activities.
 
 ### 9. Get Today's Actions
 
@@ -400,6 +414,71 @@ Each recommendation includes:
 - `quality_score`: Evidence quality score (only high-quality content is shown)
 - `url`: Link to the article
 
+### 15. Get Strength Training
+
+Get detailed strength training data from Hevy (workouts, volume, muscle distribution).
+
+```
+GET /api/v1/mcp/tools/get_strength_training?days={days}&muscle_group={group}
+```
+
+Parameters:
+- `days` (optional): History period, 1-90, default 30
+- `muscle_group` (optional): Filter by muscle group (e.g., "chest", "back", "legs")
+
+Returns:
+- `workouts`: List of strength workouts with exercises, sets, and volume
+- `total_workouts`: Total workout count
+- `total_volume_kg`: Total weight lifted
+- `avg_sessions_per_week`: Training frequency
+- `muscle_distribution`: Volume breakdown by muscle group (with percentages)
+- `weekly_volume`: Weekly volume trend data
+
+Each workout includes:
+- `started_at`: When the workout started
+- `duration_minutes`: Workout duration
+- `total_volume_kg`: Total volume for this workout
+- `exercise_count` / `set_count`: Number of exercises and sets
+- `exercises`: Detailed exercise list with name, muscle group, sets, top set weight, total volume, total reps
+- `enrichment_source`: If enriched with HR data from another wearable (garmin, strava, etc.)
+- `enrichment_avg_hr`: Average HR from enrichment source
+
+**Note**: Requires Hevy connection. Returns error if user has no Hevy integration.
+
+### 16. Get Erg Results
+
+Get Concept2 ergometer results (rowing, skiing, biking).
+
+```
+GET /api/v1/mcp/tools/get_erg_results?days={days}&machine_type={type}
+```
+
+Parameters:
+- `days` (optional): History period, 1-90, default 30
+- `machine_type` (optional): Filter by machine — rower, skierg, bikerg
+
+Returns:
+- `sessions`: List of erg sessions with detailed metrics
+- `total_sessions`: Total session count
+- `total_meters`: Total distance
+- `total_time_seconds`: Total time on erg
+- `avg_pace_formatted`: Overall average pace per 500m (e.g., "2:05.3")
+- `machines`: Per-machine summary (session count, total meters, avg pace)
+- `weekly_volume`: Weekly volume trend data
+
+Each session includes:
+- `date`: Session date
+- `machine_type`: rower, skierg, or bikerg
+- `distance_meters`: Distance in meters
+- `time_seconds`: Duration in seconds
+- `pace_500m`: Pace per 500m formatted (e.g., "2:05.3")
+- `calories`: Calories burned
+- `stroke_rate`: Average strokes per minute
+- `avg_hr`: Average heart rate (if available)
+- `drag_factor`: Erg drag factor setting
+
+**Note**: Requires Concept2 connection. Returns error if user has no Concept2 integration.
+
 ## Interpreting Scores
 
 ### Healthspan Score (0-100)
@@ -506,6 +585,18 @@ Each health dimension is scored independently:
 4. Show status counts (e.g., "12 optimal, 3 suboptimal, 1 high")
 5. Note trends (increasing/decreasing/stable)
 
+### "Show me my strength training" / "How's my lifting?"
+1. Call `get_strength_training?days=30`
+2. Summarize workout frequency and total volume
+3. Show muscle group distribution (highlight any imbalances)
+4. List recent workouts with top exercises
+
+### "Show me my rowing results" / "How are my erg sessions?"
+1. Call `get_erg_results?days=30`
+2. Summarize total sessions, distance, and average pace
+3. Show per-machine breakdown if using multiple ergs
+4. Highlight pace trends (improving/declining)
+
 ### "What should I read about?" / "Any health articles for me?"
 1. Call `get_content_recommendations?limit=5`
 2. Present articles with titles and relevance reasons
@@ -562,12 +653,12 @@ No authentication required. If the request fails or times out, skip the check an
 Response (when successful):
 ```json
 {
-  "clawdbot_skill": { "latest": "1.6.0", "update_command": "clawdhub update gevety" },
+  "clawdbot_skill": { "latest": "1.7.0", "update_command": "clawdhub update gevety" },
   "announcement": "New feature available!"
 }
 ```
 
-**If `clawdbot_skill.latest` > 1.6.0** (this skill's version), tell the user:
+**If `clawdbot_skill.latest` > 1.7.0** (this skill's version), tell the user:
 > "A Gevety skill update is available. Run: `clawdhub update gevety`"
 
 **If `announcement` is present**, mention it once per session.

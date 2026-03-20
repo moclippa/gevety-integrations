@@ -1,7 +1,7 @@
 ---
 name: gevety
-version: 1.7.0
-description: Access your Gevety health data - biomarkers, healthspan scores, biological age, supplements, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, and health content
+version: 1.8.0
+description: Access your Gevety health data - biomarkers, healthspan scores, biological age, supplements, medications, medical profile, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, health documents, and health content
 homepage: https://gevety.com
 user-invocable: true
 command: gevety
@@ -479,6 +479,85 @@ Each session includes:
 
 **Note**: Requires Concept2 connection. Returns error if user has no Concept2 integration.
 
+### 17. List Medications
+
+Get the user's prescription medications.
+
+```
+GET /api/v1/mcp/tools/list_medications?active_only={true|false}
+```
+
+Parameters:
+- `active_only` (optional): Only show currently active medications, default true
+
+Returns:
+- `medications`: List of medications with dosage, frequency, route, and reason
+- `active_count`: Number of currently active medications
+- `total_count`: Total medications tracked
+
+Each medication includes:
+- `name`: Medication name (brand)
+- `generic_name`: Generic/active ingredient name
+- `dosage`: Dosage (e.g., "500mg")
+- `frequency`: How often taken (e.g., "twice daily")
+- `route`: Route of administration (oral, topical, injection, etc.)
+- `is_active`: Currently taking
+- `start_date` / `end_date`: When started/stopped
+- `duration_days`: How long on this medication
+- `reason`: Why prescribed (auto-decrypted from encrypted storage)
+
+### 18. Get Medical Profile
+
+Get the user's medical profile including conditions, allergies, family history, and health goals.
+
+```
+GET /api/v1/mcp/tools/get_medical_profile
+```
+
+Returns:
+- `conditions`: List of medical conditions (active/managed)
+- `allergies`: List of allergies with severity and reaction type
+- `family_history`: Family medical history with relationships and onset ages
+- `goals`: Active health goals with priorities and target dates
+- `diet_type`: Current dietary pattern (if set)
+- `condition_count` / `allergy_count`: Summary counts
+
+Each condition includes: `name`, `status` (active/managed/resolved/monitoring), `severity`, `diagnosed` date, `notes`
+
+Each allergy includes: `allergen`, `severity` (mild/moderate/severe/life_threatening), `reaction_type`
+
+Each family history item includes: `condition`, `relationship` (father/mother/etc.), `age_at_onset`, `notes`
+
+### 19. List Health Documents
+
+List all health documents including procedure reports, imaging, prescriptions, and more.
+
+```
+GET /api/v1/mcp/tools/list_health_documents?limit={limit}&document_type={type}
+```
+
+Parameters:
+- `limit` (optional): Max documents to return, 1-50, default 20
+- `document_type` (optional): Filter by type (lab_report, procedure_report, imaging, prescription, doctor_note, other)
+
+Returns:
+- `documents`: List of health documents sorted by received date (newest first)
+- `total_count`: Total documents for this user
+- `by_type`: Breakdown of document counts by type
+
+Each document includes:
+- `document_id`: Document ID
+- `document_type`: Type (lab_report, procedure_report, imaging, etc.)
+- `document_subtype`: Subtype (cac, dexa, colonoscopy, mammogram, etc.)
+- `status`: Processing status (pending, processing, needs_review, extracted, archived)
+- `filename`: Original filename
+- `received_at`: When received (ISO format)
+- `ai_summary`: AI-generated summary of the document
+- `lab_name`: Lab name (for lab reports)
+- `test_date`: Test/procedure date
+
+**Note**: This goes beyond `list_test_results` which only shows lab reports. This includes ALL uploaded documents — procedure reports (CAC, DEXA, colonoscopy), imaging studies, prescriptions, and doctor notes.
+
 ## Interpreting Scores
 
 ### Healthspan Score (0-100)
@@ -597,6 +676,25 @@ Each health dimension is scored independently:
 3. Show per-machine breakdown if using multiple ergs
 4. Highlight pace trends (improving/declining)
 
+### "What medications am I on?" / "What prescriptions do I take?"
+1. Call `list_medications?active_only=true`
+2. List active medications with dosage and frequency
+3. Note route and reason if available
+4. To see historical medications too, use `active_only=false`
+
+### "What are my medical conditions?" / "Do I have any allergies?"
+1. Call `get_medical_profile`
+2. Present conditions with status and severity
+3. List allergies with severity levels
+4. Show family history (relevant for risk assessment)
+5. Note active health goals
+
+### "Show me all my health documents" / "What procedure reports do I have?"
+1. Call `list_health_documents?limit=20`
+2. Show type breakdown (lab reports, procedures, imaging, etc.)
+3. List documents with AI summaries
+4. Filter by type if user asks about specific category: `document_type=procedure_report`
+
 ### "What should I read about?" / "Any health articles for me?"
 1. Call `get_content_recommendations?limit=5`
 2. Present articles with titles and relevance reasons
@@ -653,12 +751,12 @@ No authentication required. If the request fails or times out, skip the check an
 Response (when successful):
 ```json
 {
-  "clawdbot_skill": { "latest": "1.7.0", "update_command": "clawdhub update gevety" },
+  "clawdbot_skill": { "latest": "1.8.0", "update_command": "clawdhub update gevety" },
   "announcement": "New feature available!"
 }
 ```
 
-**If `clawdbot_skill.latest` > 1.7.0** (this skill's version), tell the user:
+**If `clawdbot_skill.latest` > 1.8.0** (this skill's version), tell the user:
 > "A Gevety skill update is available. Run: `clawdhub update gevety`"
 
 **If `announcement` is present**, mention it once per session.

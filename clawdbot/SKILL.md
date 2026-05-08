@@ -1,7 +1,7 @@
 ---
 name: gevety
-version: 1.10.0
-description: Access your Gevety health data - biomarkers, healthspan scores, biological age, what-if scenarios across bio-age clocks, supplements, medications, medical profile, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, health documents, clinical findings, and health content
+version: 1.11.0
+description: Access your Gevety health data - biomarkers, healthspan scores, biological age, what-if scenarios across bio-age clocks, biomarker trajectories, bio-age clock history, non-clock health signals (CRF / stress resilience), supplements, medications, medical profile, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, health documents, clinical findings, and health content
 homepage: https://gevety.com
 user-invocable: true
 command: gevety
@@ -189,6 +189,78 @@ Returns:
 - `reason`: Why not available (if applicable)
 - `upgrade_available`: Can unlock better algorithm with more data
 - `upgrade_message`: What additional tests would help
+
+### 6c. Get Biomarker Trajectory (Linear Regression on User History)
+
+Get a biomarker's trajectory: slope, direction, 3/6-month predictions,
+time-to-target, and a freshness flag. Linear regression on the user's history.
+
+```
+GET /api/v1/mcp/tools/get_biomarker_trajectory?biomarker={name}&months={int}
+```
+
+Parameters:
+- `biomarker` (required): canonical name or alias (e.g., 'LDL Cholesterol' or 'ldl')
+- `months` (optional): history window in months (default 12, min 3, max 36)
+
+Returns:
+- `direction`: improving | worsening | stable (relative to functional / reference range)
+- `slope_per_month`, `predicted_3m`, `predicted_6m`
+- `time_to_target_months` when improving toward target
+- `confidence_r_squared` (R²) — accuracy depends on data point density
+- `freshness`: fresh (≤180d) / aging (≤365d) / stale (>365d)
+- `evidence_tier: 'directional'` (linear regression on user history, NOT a
+  validated population trajectory model)
+- `caveats[]`: low-fit and stale-data flags
+
+Returns `supported=false` with `status="insufficient_data"` when fewer than
+3 data points fall in the window — explain that to the user rather than
+treating it as an error.
+
+### 6d. Get Clock History (Per-Panel Bio-Age History)
+
+Per-panel bio-age history across PhenoAge / Light BioAge / Vascular Age.
+Each panel evaluated against ONLY that panel's biomarkers (chronological
+age uses the panel's draw date) for an honest snapshot of bio-age across time.
+
+```
+GET /api/v1/mcp/tools/get_clock_history?clock={...}&months={int}
+```
+
+Parameters:
+- `clock` (optional): `phenoage` | `light_bioage` | `vascular` | `all` (default `all`)
+- `months` (optional): history window (default 24, min 6, max 120)
+
+Returns per-clock blocks each carrying:
+- `panels[]`: per-panel `test_date` / `chronological_age` / `biological_age` / `delta_years`
+- `trend`: improving | worsening | stable (across panels)
+- `delta_years_change`: oldest → newest delta_years change (negative = trending younger)
+- `evidence_tier`: validated (PhenoAge / Vascular) | validated_emerging (Light BioAge)
+- `freshness`: fresh / aging / stale based on latest panel
+- `caveats[]`
+
+Returns `supported=false` with `status="no_panels_in_window"` when a clock
+has no qualifying panels in the window.
+
+### 6e. Get Health Signal (Non-Clock Signals)
+
+Generic accessor for non-clock health signals. All v1 signals carry
+`evidence_tier='directional'` — strong biomarker→outcome literature but
+expressed as a score/index, not validated population-model years.
+
+```
+GET /api/v1/mcp/tools/get_health_signal?signal={crf|stress_resilience}
+```
+
+Supported signals (v1):
+- `crf`: Cardiorespiratory fitness (VO2max + FRIEND percentile + Mandsager
+  2018 mortality risk class)
+- `stress_resilience`: 0-100 composite from HRV/RHR trends, recovery score,
+  sleep efficiency, cortisol:DHEA-S ratio (MAI-7 scorer)
+
+Returns `score` / `value` / `category` / `breakdown[]` / `freshness` / `caveats`
+with structured `supported=false` cases for missing data, missing baseline,
+or fewer than the minimum required signals.
 
 ### 6b. Compute What-If (Multi-Biomarker Scenario Simulator)
 
@@ -711,6 +783,33 @@ Each health dimension is scored independently:
 1. Call `get_opportunities?limit=5`
 2. Present top opportunities ranked by healthspan impact
 3. Explain what each biomarker does and why optimizing it matters
+
+### "How is my LDL trending?" / "When will my CRP get to target?"
+1. Call `get_biomarker_trajectory?biomarker=ldl&months=12`.
+2. Read off `direction` (improving / worsening / stable) + `slope_per_month`.
+3. If `time_to_target_months` is present, surface it ("on this trajectory you'll
+   hit target in ~8 months"). If `supported=false`, explain to the user that
+   they need ≥3 data points and consider the freshness flag.
+4. Always call out that the evidence tier is `directional` (linear regression
+   on user history, not a validated population model).
+
+### "How has my biological age trended over time?" / "Show me my bio-age history"
+1. Call `get_clock_history?clock=all&months=24`.
+2. For each supported clock, surface the per-panel ledger + trend +
+   `delta_years_change`.
+3. PhenoAge / Vascular are `validated`; Light BioAge is `validated_emerging` —
+   reflect that asymmetry in language ("PhenoAge says... — Light BioAge, an
+   emerging clock, says...").
+4. NEVER sum across clocks. Each clock evaluates against its own per-panel
+   inputs and uses different mathematical models.
+
+### "How fit am I vs my age peers?" / "How's my stress recovery?"
+1. Call `get_health_signal?signal=crf` or `signal=stress_resilience`.
+2. Surface the score / category / interpretation. Use `breakdown[]` to explain
+   what's driving the score.
+3. ALWAYS qualify with the evidence tier (`directional`) — these are
+   biomarker-derived scores, not validated population-model years.
+4. If `primary_concern` is set, surface the recommendation verbatim.
 
 ### "What if my LDL dropped to 80?" / "How would my biological age change if X?"
 1. Call `compute_what_if` (POST) with the user's hypothetical biomarker target(s).

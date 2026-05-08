@@ -1,7 +1,7 @@
 ---
 name: gevety
-version: 1.9.0
-description: Access your Gevety health data - biomarkers, healthspan scores, biological age, supplements, medications, medical profile, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, health documents, clinical findings, and health content
+version: 1.10.0
+description: Access your Gevety health data - biomarkers, healthspan scores, biological age, what-if scenarios across bio-age clocks, supplements, medications, medical profile, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, health documents, clinical findings, and health content
 homepage: https://gevety.com
 user-invocable: true
 command: gevety
@@ -189,6 +189,64 @@ Returns:
 - `reason`: Why not available (if applicable)
 - `upgrade_available`: Can unlock better algorithm with more data
 - `upgrade_message`: What additional tests would help
+
+### 6b. Compute What-If (Multi-Biomarker Scenario Simulator)
+
+Simulate the impact of biomarker target changes across PhenoAge, Light BioAge, and
+Vascular Age clocks. Joint compute via each clock's native recompute path — NOT a
+naive sum of single-biomarker effects.
+
+```
+POST /api/v1/mcp/tools/compute_what_if
+Content-Type: application/json
+
+{
+  "targets": [
+    { "biomarker": "ldl_cholesterol", "target_value": 80, "target_unit": "mg/dL" },
+    { "biomarker": "hdl_cholesterol", "target_value": 60, "target_unit": "mg/dL" }
+  ],
+  "clocks": ["phenoage", "light_bioage", "vascular"]
+}
+```
+
+Body:
+- `targets` (1-9 entries, required): Target overrides per biomarker.
+  - `biomarker`: Canonical key (snake_case) — supports `ldl_cholesterol`,
+    `hdl_cholesterol`, `total_cholesterol`, `systolic_bp`, `glucose`, `hscrp`,
+    `albumin`, `creatinine`, `alkaline_phosphatase`, `rdw`, `mcv`, `wbc`,
+    `lymphocyte_percent`. Aliases auto-resolve: `LDL`, `HDL`, `TC`, `SBP`,
+    `ALP`, `hsCRP`. ApoB is recognized but no v1 clock consumes it. HbA1c is
+    NOT a v1 input.
+  - `target_value`: Hypothetical value.
+  - `target_unit` (optional): Defaults to canonical unit (mg/dL for chol, mmHg for SBP, etc.).
+- `clocks` (optional): Defaults to `[phenoage, light_bioage, vascular]`. GrimAge2 /
+  DunedinPACE return `supported=false` with `status="evidence_gated"` until
+  methylation data is connected.
+
+Returns:
+- `scenario`: Echo of the canonicalized request.
+- `baseline`: User chronological age + UTC computation timestamp.
+- `clocks[]`: One row per requested clock with:
+  - `name`, `algorithm`, `evidence_tier` (`validated` / `validated_emerging`),
+    `model_provenance`, `supported`
+  - When supported: `direction` (`younger` / `older` / `unchanged`),
+    `current_value`, `scenario_value`, `delta_years`, `applied_targets`,
+    `missing_targets[]` (with structured reason keys), `model_assumptions[]`
+    (e.g., the LDL → ΔTotal Cholesterol derivation rule for Vascular Age),
+    `freshness`, `caveats[]`
+  - When not supported: `status` (`evidence_gated` / `requires_more_data` /
+    `missing_baseline` / `out_of_range`) + `reason`
+- `summary`:
+  - `best_clock`: Highest-evidence supported clock with applied targets
+  - `per_clock_deltas`: Structured array — pick what to surface
+  - `ranked_levers`: Per-target leave-one-out approximation
+  - `joint_caveat`: "deltas are NOT additive across clocks — different inputs"
+  - `non_additivity_warning`: ranked_levers contributions don't sum exactly to
+    a clock's total delta because of non-linear interactions
+- `guardrails`: `is_medical_advice: false` + user-facing disclaimer.
+
+Use this to answer "what happens to my biological age clocks if my LDL drops to
+80 and HDL rises to 60?".
 
 ### 7. List Supplements
 
@@ -653,6 +711,18 @@ Each health dimension is scored independently:
 1. Call `get_opportunities?limit=5`
 2. Present top opportunities ranked by healthspan impact
 3. Explain what each biomarker does and why optimizing it matters
+
+### "What if my LDL dropped to 80?" / "How would my biological age change if X?"
+1. Call `compute_what_if` (POST) with the user's hypothetical biomarker target(s).
+2. Read off `summary.best_clock` for the headline (one validated clock + delta + direction).
+3. Surface PhenoAge / Light BioAge / Vascular as separate rows — they are NOT
+   additive across clocks. Always include the joint caveat from `summary.joint_caveat`.
+4. If `model_assumptions` is non-empty (e.g., the LDL → ΔTotal Cholesterol
+   derivation), surface it verbatim — it's load-bearing context for the user.
+5. If a clock returns `supported=false` with `status="evidence_gated"`, mention
+   the methylation testing options (TruDiagnostic / Elysium / Clock Foundation).
+6. Never say "X years gained" if `direction == "older"`; phrase scenarios that
+   worsen risk as "+ X years older" with a recommendation to consult a clinician.
 
 ### "How old am I biologically?"
 1. Call `get_biological_age`

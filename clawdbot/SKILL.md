@@ -1,7 +1,7 @@
 ---
 name: gevety
-version: 1.11.0
-description: Access your Gevety health data - biomarkers, healthspan scores, biological age, what-if scenarios across bio-age clocks, biomarker trajectories, bio-age clock history, non-clock health signals (CRF / stress resilience), supplements, medications, medical profile, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, health documents, clinical findings, and health content
+version: 1.12.0
+description: Access your Gevety health data - biomarkers, healthspan scores, biological age, what-if scenarios across five bio-age clocks (PhenoAge / Light BioAge / Vascular / CRF / Stress Resilience), biomarker trajectories, bio-age clock history, non-clock health signals, supplements, medications, medical profile, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, health documents, clinical findings, and health content
 homepage: https://gevety.com
 user-invocable: true
 command: gevety
@@ -264,8 +264,9 @@ or fewer than the minimum required signals.
 
 ### 6b. Compute What-If (Multi-Biomarker Scenario Simulator)
 
-Simulate the impact of biomarker target changes across PhenoAge, Light BioAge, and
-Vascular Age clocks. Joint compute via each clock's native recompute path — NOT a
+Simulate the impact of biomarker (or wearable) target changes across five clocks:
+PhenoAge, Light BioAge, Vascular Age, Cardiorespiratory Fitness (CRF), and
+Stress Resilience. Joint compute via each clock's native recompute path — NOT a
 naive sum of single-biomarker effects.
 
 ```
@@ -275,31 +276,44 @@ Content-Type: application/json
 {
   "targets": [
     { "biomarker": "ldl_cholesterol", "target_value": 80, "target_unit": "mg/dL" },
-    { "biomarker": "hdl_cholesterol", "target_value": 60, "target_unit": "mg/dL" }
+    { "biomarker": "vo2max", "target_value": 45, "target_unit": "mL/kg/min" }
   ],
-  "clocks": ["phenoage", "light_bioage", "vascular"]
+  "clocks": ["phenoage", "light_bioage", "vascular", "crf", "stress_resilience"]
 }
 ```
 
 Body:
 - `targets` (1-9 entries, required): Target overrides per biomarker.
-  - `biomarker`: Canonical key (snake_case) — supports `ldl_cholesterol`,
-    `hdl_cholesterol`, `total_cholesterol`, `systolic_bp`, `glucose`, `hscrp`,
-    `albumin`, `creatinine`, `alkaline_phosphatase`, `rdw`, `mcv`, `wbc`,
-    `lymphocyte_percent`. Aliases auto-resolve: `LDL`, `HDL`, `TC`, `SBP`,
-    `ALP`, `hsCRP`. ApoB is recognized but no v1 clock consumes it. HbA1c is
-    NOT a v1 input.
+  - `biomarker`: Canonical key (snake_case). Supported v1 inputs grouped by clock:
+    - **Vascular**: `ldl_cholesterol` (derived → total_cholesterol), `hdl_cholesterol`,
+      `total_cholesterol`, `systolic_bp`
+    - **PhenoAge / Light BioAge**: `glucose`, `hscrp`, `albumin`, `creatinine`,
+      `alkaline_phosphatase`, `rdw`, `mcv`, `wbc`, `lymphocyte_percent`
+    - **CRF (directional)**: `vo2max` (mL/kg/min, from a connected wearable)
+    - **Stress Resilience (experimental, score-only)**: `recovery_score` (0–100),
+      `sleep_efficiency` (0–100 %), `cortisol_dheas_ratio`, `hrv` (ms RMSSD),
+      `rhr` (bpm). HRV / RHR are absolute targets that the engine derives into
+      baseline-relative trends; require a 30-day wearable baseline.
+    - Aliases auto-resolve: `LDL`, `HDL`, `TC`, `SBP`, `ALP`, `hsCRP`,
+      `VO2_max`, `RMSSD`, `resting_heart_rate`. ApoB is recognized but no v1
+      clock consumes it. HbA1c is NOT a v1 input.
   - `target_value`: Hypothetical value.
-  - `target_unit` (optional): Defaults to canonical unit (mg/dL for chol, mmHg for SBP, etc.).
-- `clocks` (optional): Defaults to `[phenoage, light_bioage, vascular]`. GrimAge2 /
-  DunedinPACE return `supported=false` with `status="evidence_gated"` until
-  methylation data is connected.
+  - `target_unit` (optional): Defaults to canonical unit (mg/dL for chol,
+    mmHg for SBP, mL/kg/min for VO₂max, ms for HRV, bpm for RHR, etc.).
+- `lifestyle_overrides` (optional): Vascular-only Framingham flag overrides
+  (`{ "smoker": false, "bp_treated": true, "diabetic": false }`). Use to
+  simulate quit-smoking / start-bp-medication scenarios without biomarker
+  targets. Empty `targets[]` is allowed when `lifestyle_overrides` is set.
+- `clocks` (optional): Defaults to all five — `[phenoage, light_bioage,
+  vascular, crf, stress_resilience]`. GrimAge2 / DunedinPACE remain
+  `evidence_gated` until methylation data is connected.
 
 Returns:
 - `scenario`: Echo of the canonicalized request.
 - `baseline`: User chronological age + UTC computation timestamp.
 - `clocks[]`: One row per requested clock with:
-  - `name`, `algorithm`, `evidence_tier` (`validated` / `validated_emerging`),
+  - `name`, `algorithm`, `evidence_tier`
+    (`validated` / `validated_emerging` / `directional` / `experimental`),
     `model_provenance`, `supported`
   - When supported: `direction` (`younger` / `older` / `unchanged`),
     `current_value`, `scenario_value`, `delta_years`, `applied_targets`,
@@ -309,16 +323,40 @@ Returns:
   - When not supported: `status` (`evidence_gated` / `requires_more_data` /
     `missing_baseline` / `out_of_range`) + `reason`
 - `summary`:
-  - `best_clock`: Highest-evidence supported clock with applied targets
-  - `per_clock_deltas`: Structured array — pick what to surface
+  - `best_clock`: Highest-evidence supported clock with applied targets.
+    Score-only clocks (Stress Resilience) are NEVER best_clock candidates.
+  - `per_clock_deltas`: Structured years deltas. Score-only clocks are
+    filtered out (no years to compare).
   - `ranked_levers`: Per-target leave-one-out approximation
   - `joint_caveat`: "deltas are NOT additive across clocks — different inputs"
   - `non_additivity_warning`: ranked_levers contributions don't sum exactly to
     a clock's total delta because of non-linear interactions
 - `guardrails`: `is_medical_advice: false` + user-facing disclaimer.
 
-Use this to answer "what happens to my biological age clocks if my LDL drops to
-80 and HDL rises to 60?".
+**Reading the rows by evidence tier**:
+
+- **`validated`** (PhenoAge, Vascular Age): Population-validated bio-age in years.
+  Quote `delta_years` and `direction` directly to the user.
+- **`validated_emerging`** (Light BioAge): Validated population data with
+  emerging Gevety calibration. Cross-check with PhenoAge when all nine
+  PhenoAge inputs are present.
+- **`directional`** (CRF): Years estimate is approximated from Mandsager 2018
+  mortality hazard ratios (~0.5y per MET of VO₂max gain). NOT a
+  population-validated bio-age. Phrase as "research suggests this could
+  improve longevity by ~Xy" rather than "your bio-age drops by Xy".
+- **`experimental`** (Stress Resilience, **score-only**): `delta_years` is
+  `null` by design. `current_value` / `scenario_value` carry a 0–100 MAI-7
+  composite score (HRV + RHR + recovery + sleep efficiency + cortisol:DHEA-S).
+  Quote the score change ("66 → 78 / 100, +12 points") and `direction`.
+  Never fabricate a years number from the score — there is no validated
+  mapping.
+
+Use this to answer:
+- "What happens to my biological age clocks if my LDL drops to 80?"
+- "What if I quit smoking?" (use `lifestyle_overrides`)
+- "If my VO₂max went from 35 to 45, how much younger could I be?"
+- "How much would my stress resilience improve if I got my sleep efficiency
+  to 90% and my recovery score to 80?"
 
 ### 7. List Supplements
 
@@ -814,14 +852,59 @@ Each health dimension is scored independently:
 ### "What if my LDL dropped to 80?" / "How would my biological age change if X?"
 1. Call `compute_what_if` (POST) with the user's hypothetical biomarker target(s).
 2. Read off `summary.best_clock` for the headline (one validated clock + delta + direction).
-3. Surface PhenoAge / Light BioAge / Vascular as separate rows — they are NOT
-   additive across clocks. Always include the joint caveat from `summary.joint_caveat`.
+3. Surface PhenoAge / Light BioAge / Vascular / CRF as separate rows — they
+   are not additive across clocks. Always include the joint caveat from
+   `summary.joint_caveat`.
 4. If `model_assumptions` is non-empty (e.g., the LDL → ΔTotal Cholesterol
    derivation), surface it verbatim — it's load-bearing context for the user.
 5. If a clock returns `supported=false` with `status="evidence_gated"`, mention
    the methylation testing options (TruDiagnostic / Elysium / Clock Foundation).
 6. Never say "X years gained" if `direction == "older"`; phrase scenarios that
    worsen risk as "+ X years older" with a recommendation to consult a clinician.
+7. **Tier-aware phrasing**: when quoting `delta_years` from a `directional`
+   clock (CRF), say "research suggests this could improve longevity by
+   ~Xy" rather than "your bio-age drops by Xy". The CRF years are
+   approximated from Mandsager 2018 hazard ratios, not a population-validated
+   bio-age model.
+
+### "What if I quit smoking?" / "What if I started BP medication?"
+1. Call `compute_what_if` with `lifestyle_overrides` populated (e.g.
+   `{ "smoker": false }` or `{ "bp_treated": true }`) and `targets: []`.
+2. Only the Vascular Age clock changes — these flags are Framingham
+   coefficients, not PhenoAge / Light BioAge / CRF / Stress inputs. The
+   other clocks return `direction: "unchanged"` with `delta_years: 0.0`.
+3. Surface the Vascular Age delta as the headline; explain that lifestyle
+   overrides don't apply to the other clocks because they consume different
+   risk factors.
+
+### "If my VO₂max went from 35 to 45, how much younger could I be?"
+1. Call `compute_what_if` with `{ "biomarker": "vo2max", "target_value": 45 }`.
+2. The CRF clock returns `evidence_tier: "directional"`. Use the canonical
+   tier-aware phrasing from §6b — "research suggests this could improve
+   longevity by ~Xy" — and lean on the row's `caveats[]` for the full
+   Mandsager 2018 grounding rather than paraphrasing it.
+3. The CRF row's `model_assumptions` will name the wearable source
+   ("Garmin device" / "WHOOP" / "Oura") of the baseline VO₂max — surface
+   it so the user knows where the baseline came from.
+4. If the user has no VO₂max from a connected wearable, the CRF row
+   returns `supported=false` with `status="requires_more_data"` and a
+   prompt to connect Garmin, WHOOP, or Oura.
+
+### "How much would my stress resilience improve if I got my sleep efficiency to 90%?"
+1. Call `compute_what_if` with `{ "biomarker": "sleep_efficiency", "target_value": 90 }`
+   (or stack with `recovery_score`, `cortisol_dheas_ratio`, `hrv`, `rhr`).
+2. **Stress Resilience is score-only — `delta_years` is `null` by design.**
+   Quote `current_value` and `scenario_value` as scores out of 100
+   (e.g. "66 → 78 / 100, +12 points") and `direction` ("younger" /
+   "older" / "unchanged"). Never fabricate a years number from the
+   score — there is no validated mapping.
+3. The Stress Resilience row appears in `clocks[]` but is filtered out
+   of `summary.per_clock_deltas` and is NEVER `summary.best_clock` —
+   score-only clocks don't compete on years.
+4. HRV / RHR targets require a 30-day wearable baseline. If the user
+   has no baseline, the override is rejected with a structured reason
+   in `missing_targets[]` and the score doesn't change — say "you'd
+   need 30 days of HRV from your wearable for me to estimate this."
 
 ### "How old am I biologically?"
 1. Call `get_biological_age`

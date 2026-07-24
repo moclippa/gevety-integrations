@@ -1,6 +1,6 @@
 ---
 name: gevety
-version: 1.12.0
+version: 1.13.0
 description: Access your Gevety health data - biomarkers, healthspan scores, biological age, what-if scenarios across five bio-age clocks (PhenoAge / Light BioAge / Vascular / CRF / Stress Resilience), biomarker trajectories, bio-age clock history, non-clock health signals, supplements, medications, medical profile, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, health documents, clinical findings, and health content
 homepage: https://gevety.com
 user-invocable: true
@@ -584,17 +584,23 @@ Each recommendation includes:
 
 ### 15. Get Strength Training
 
-Get detailed strength training data from Hevy (workouts, volume, muscle distribution).
+Get strength training across ALL connected sources (Garmin, WHOOP, Strava, Oura, Apple Health, Hevy, ...), plus exercise-level detail (sets, volume, muscle groups) when Hevy is connected.
 
 ```
-GET /api/v1/mcp/tools/get_strength_training?days={days}&muscle_group={group}
+GET /api/v1/mcp/tools/get_strength_training?days={days}&muscle_group={group}&include_all_sources=true
 ```
 
 Parameters:
 - `days` (optional): History period, 1-90, default 30
-- `muscle_group` (optional): Filter by muscle group (e.g., "chest", "back", "legs")
+- `muscle_group` (optional): Filter the Hevy detail layer by muscle group (e.g., "chest", "back", "legs")
+- `include_all_sources` (recommended: `true`): Also return source-agnostic strength sessions from every connected platform. Without it the endpoint keeps the legacy Hevy-only behavior.
 
-Returns:
+Returns (session layer — all sources, when `include_all_sources=true`):
+- `sessions`: Strength sessions from every connected platform (date, category, source, duration, name)
+- `total_sessions_all_sources`: Session count across all sources
+- `sessions_by_source`: Per-source session tally (e.g., `{"hevy": 2, "garmin": 1}`)
+
+Returns (exercise-detail layer — Hevy):
 - `workouts`: List of strength workouts with exercises, sets, and volume
 - `total_workouts`: Total workout count
 - `total_volume_kg`: Total weight lifted
@@ -611,7 +617,7 @@ Each workout includes:
 - `enrichment_source`: If enriched with HR data from another wearable (garmin, strava, etc.)
 - `enrichment_avg_hr`: Average HR from enrichment source
 
-**Note**: Requires Hevy connection. Returns error if user has no Hevy integration.
+**Note**: Strength is source-agnostic — never tell the user strength only comes from Hevy. With `include_all_sources=true`, users without Hevy still get their strength sessions from other platforms; the Hevy detail fields are simply empty. An error is returned only when NO connected source has strength data (legacy calls without the parameter keep the old Hevy-required behavior).
 
 ### 16. Get Erg Results
 
@@ -955,10 +961,10 @@ Each health dimension is scored independently:
 5. Note trends (increasing/decreasing/stable)
 
 ### "Show me my strength training" / "How's my lifting?"
-1. Call `get_strength_training?days=30`
-2. Summarize workout frequency and total volume
-3. Show muscle group distribution (highlight any imbalances)
-4. List recent workouts with top exercises
+1. Call `get_strength_training?days=30&include_all_sources=true`
+2. Summarize sessions across ALL sources first (`total_sessions_all_sources` + `sessions_by_source`) — strength spans every connected platform, not just Hevy
+3. When Hevy detail is present, add total volume and muscle group distribution (highlight any imbalances)
+4. List recent workouts with top exercises (Hevy) or recent sessions (other sources)
 
 ### "Show me my rowing results" / "How are my erg sessions?"
 1. Call `get_erg_results?days=30`

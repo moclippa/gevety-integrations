@@ -12,7 +12,24 @@ from an app on your iPhone that pushes it on a schedule. The supported sender is
   in the background. It has a 7-day trial and a lifetime purchase option.
 - A Gevety account at [gevety.com](https://gevety.com).
 
-## Set it up (about five minutes)
+## Set it up on your iPhone (one minute)
+
+1. On your iPhone, open [gevety.com](https://gevety.com) in Safari, go to
+   **Profile → Sources → Apple Health** and press **Connect Apple Health**.
+2. Tap **Add health metrics automation**. Health Auto Export opens with a
+   "Gevety health metrics" automation already filled in (receiver URL, header,
+   JSON, Since Last Sync, batching, hourly). Save it.
+3. Go back to Gevety and tap **Add workouts automation**; save that one too.
+4. In each automation, run **Manual Export** once. Gevety's Apple Health page
+   shows "synced just now" when the first delivery lands.
+
+Tip: in the health metrics automation, trim **Select Health Metrics** to the
+ones you use (steps, resting heart rate, HRV, sleep, weight, respiratory rate,
+blood oxygen); the app runs faster with fewer metrics.
+
+## Set it up by hand (about five minutes)
+
+Use this on a desktop browser, or if the one-tap links do not open the app.
 
 1. In Gevety go to **Profile → Sources → Apple Health** and press **Connect Apple Health**.
    Gevety shows three values once: a **receiver URL**, a **header key**

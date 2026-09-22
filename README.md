@@ -11,6 +11,15 @@ Gevety is a self-hosted blood test tracking platform with AI-powered biomarker a
 | [Clawdbot](./clawdbot/) | Skill for Clawdbot AI assistant | `clawdhub install gevety` |
 | [Claude Desktop](./claude-desktop/) | MCP server for Claude Desktop | `pip install gevety-mcp` |
 
+## Data sources
+
+Guides for getting your device data into Gevety:
+
+| Source | Guide | You need |
+|--------|-------|----------|
+| Apple Health (iPhone / Apple Watch) | [apple-health](./apple-health/) | Health Auto Export app (Premium) |
+| Strava | [strava](./strava/) | Strava app or any device that uploads to Strava |
+
 ## Quick Start
 
 1. **Get a Gevety account** at [gevety.com](https://gevety.com)

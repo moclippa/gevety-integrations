@@ -20,12 +20,17 @@ from an app on your iPhone that pushes it on a schedule. The supported sender is
    "Gevety health metrics" automation already filled in (receiver URL, header,
    JSON, Since Last Sync, batching, hourly). Save it.
 3. Go back to Gevety and tap **Add workouts automation**; save that one too.
-4. In each automation, run **Manual Export** once. Gevety's Apple Health page
-   shows "synced just now" when the first delivery lands.
+4. That is it. Each automation runs on its own: the first run sends your whole
+   workout history and the last week of daily metrics, one small request at a
+   time, so it takes a few minutes. Gevety's Apple Health page shows "synced
+   just now" once the first delivery lands. Afterwards the app sends new data
+   every hour while your phone is unlocked (see the note on background sending
+   below).
 
 Tip: in the health metrics automation, trim **Select Health Metrics** to the
 ones you use (steps, resting heart rate, HRV, sleep, weight, respiratory rate,
-blood oxygen); the app runs faster with fewer metrics.
+blood oxygen); the app runs faster with fewer metrics. Workouts you also record
+in Strava, Garmin or Hevy are merged into one record, not shown twice.
 
 ## Set it up by hand (about five minutes)
 

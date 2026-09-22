@@ -15,16 +15,23 @@ from an app on your iPhone that pushes it on a schedule. The supported sender is
 ## Set it up (about five minutes)
 
 1. In Gevety go to **Profile → Sources → Apple Health** and press **Connect Apple Health**.
-   Gevety shows two values once: a **receiver URL** and an **Authorization header**.
-   Copy both. If you lose them, press **Issue a new key** to get a fresh pair.
+   Gevety shows three values once: a **receiver URL**, a **header key**
+   (`Authorization`) and a **header value** (`Bearer …`). Copy all three. If you
+   lose them, press **Issue a new key** to get a fresh set.
 2. Open Health Auto Export → **Automations** → add a **REST API** automation.
-3. Paste the receiver URL, add the header exactly as shown (`Authorization: Bearer …`),
-   and choose **JSON** as the format.
-4. Turn **Batch Requests** on and set the date range to **Since Last Sync**.
-5. Pick the metrics and workouts you want to share (steps, resting heart rate, HRV,
-   sleep, weight, workouts are the ones Gevety uses today), then run the automation once.
-6. Back in Gevety, the Apple Health page shows "synced just now" when the first
-   delivery lands. After that, the app keeps sending on its own schedule.
+3. Paste the receiver URL and choose **JSON** as the format.
+4. Scroll to **HTTP Headers** and tap **Add Headers**. The app shows two fields
+   per header: put the header key (`Authorization`) in the **left** field and
+   the header value (`Bearer …`) in the **right** field. Do not paste
+   `Authorization: Bearer …` as one line into either field: the app ignores a
+   header whose value is empty, and Gevety then sees no header at all.
+5. Turn **Batch Requests** on and set the date range to **Since Last Sync**.
+6. Pick the metrics and workouts you want to share (steps, resting heart rate, HRV,
+   sleep, weight, workouts are the ones Gevety uses today), tap **Update** to
+   save, then run **Manual Export** from inside the automation.
+7. Back in Gevety, the Apple Health page shows "synced just now" when the first
+   delivery lands. After that, the app keeps sending on its own schedule while
+   the phone is unlocked.
 
 ## What Gevety does with it
 
@@ -36,10 +43,14 @@ from an app on your iPhone that pushes it on a schedule. The supported sender is
 
 ## Troubleshooting
 
-- **"synced" never appears**: open the automation's run history in Health Auto
-  Export. A `401` means the header no longer matches the key Gevety holds; press
-  **Issue a new key** in Gevety and paste the new header. A `413` means a very
-  large first export; keep **Batch Requests** on.
+- **"synced" never appears**: open **Activity Logs** for the automation in
+  Health Auto Export. A `401` means Gevety saw no header or a header that does
+  not match the key it holds: check that the header is entered as a separate key
+  and value (step 4), or press **Issue a new key** in Gevety and paste the new
+  value. A `413` means a very large first export; keep **Batch Requests** on.
+- **The automation never runs on its own**: background sends need the
+  **Premium** plan, and the app only runs automations while the phone is
+  unlocked.
 - **Nothing to send yet**: Health Auto Export only sends what Apple Health has;
   make sure the watch has synced to the phone.
 - **Changed phones?** Reinstall the app and paste the same two values again, or

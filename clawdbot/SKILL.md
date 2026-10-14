@@ -1,6 +1,6 @@
 ---
 name: gevety
-version: 1.13.0
+version: 1.13.1
 description: Access your Gevety health data - biomarkers, healthspan scores, biological age, what-if scenarios across five bio-age clocks (PhenoAge / Light BioAge / Vascular / CRF / Stress Resilience), biomarker trajectories, bio-age clock history, non-clock health signals, supplements, medications, medical profile, activities, strength training, erg results, daily actions, 90-day health protocol, upcoming tests, lab reports, health documents, clinical findings, and health content
 homepage: https://gevety.com
 user-invocable: true
@@ -129,7 +129,7 @@ Returns:
 
 ### 4. Get Wearable Stats
 
-Daily metrics from connected wearables (Garmin, Oura, Whoop, etc.).
+Daily metrics from connected wearables (Garmin, WHOOP, Apple Health, etc.).
 
 ```
 GET /api/v1/mcp/tools/get_wearable_stats?days={days}&metric={metric}
@@ -584,7 +584,7 @@ Each recommendation includes:
 
 ### 15. Get Strength Training
 
-Get strength training across ALL connected sources (Garmin, WHOOP, Strava, Oura, Apple Health, Hevy, ...), plus exercise-level detail (sets, volume, muscle groups) when Hevy is connected.
+Get strength training across ALL connected sources (Garmin, WHOOP, Strava, Apple Health, Hevy, ...), plus exercise-level detail (sets, volume, muscle groups) when Hevy is connected.
 
 ```
 GET /api/v1/mcp/tools/get_strength_training?days={days}&muscle_group={group}&include_all_sources=true
@@ -890,11 +890,11 @@ Each health dimension is scored independently:
    longevity by ~Xy" — and lean on the row's `caveats[]` for the full
    Mandsager 2018 grounding rather than paraphrasing it.
 3. The CRF row's `model_assumptions` will name the wearable source
-   ("Garmin device" / "WHOOP" / "Oura") of the baseline VO₂max — surface
+   ("Garmin device" / "WHOOP") of the baseline VO₂max — surface
    it so the user knows where the baseline came from.
 4. If the user has no VO₂max from a connected wearable, the CRF row
    returns `supported=false` with `status="requires_more_data"` and a
-   prompt to connect Garmin, WHOOP, or Oura.
+   prompt to connect Garmin or WHOOP.
 
 ### "How much would my stress resilience improve if I got my sleep efficiency to 90%?"
 1. Call `compute_what_if` with `{ "biomarker": "sleep_efficiency", "target_value": 90 }`
